@@ -1,0 +1,281 @@
+import com.itextpdf.text.BaseColor;
+import com.itextpdf.text.Document;
+import com.itextpdf.text.Phrase;
+import com.itextpdf.text.Rectangle;
+import com.itextpdf.text.pdf.PdfPCell;
+import com.itextpdf.text.pdf.PdfPTable;
+import com.itextpdf.text.pdf.PdfWriter;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.ss.usermodel.*;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.stream.Stream;
+
+//Генерация ИНН, который начинается с 77
+class InnHelper {
+    private static List<Integer> iCoeffList1 = new ArrayList<>(Arrays.asList(
+            7, 2, 4, 10, 3, 5, 9, 4, 6, 8
+    ));
+    private static List<Integer> iCoeffList2 = new ArrayList<>(Arrays.asList(
+            3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8
+    ));
+
+    static String getIndividualInn() {
+        int checkSum1 = 0;
+        int checkSum2 = 0;
+        StringBuilder builder = new StringBuilder();
+        Random generator = new Random();
+        List<Integer> innDig = new ArrayList<>(Arrays.asList(7, 7));
+
+        for (int i = 0; i < 8; i++) {
+            innDig.add(generator.nextInt(10)); //Заполняем цифрами первый 10 для инн в нужном порядке
+        }
+
+        for (int i = 0; i < 10; i++) {
+            checkSum1 += innDig.get(i) * iCoeffList1.get(i);
+            checkSum2 += innDig.get(i) * iCoeffList2.get(i);
+            builder.append(innDig.get(i));
+        }
+
+        checkSum1 = (checkSum1 % 11) % 10;
+        checkSum2 = ((checkSum2 + checkSum1 * iCoeffList2.get(10)) % 11) % 10;
+
+        return builder.append(checkSum1).append(checkSum2).toString();
+    }
+}
+
+public class Main {
+    private static final String FAMILIYA = "familiya";
+    private static final String NAME = "name";
+    private static final String OTCHESTVO = "otchestvo";
+    private static final String SEX = "sex";
+    private static final String BIRTHDAY = "birthday";
+    private static final String INDEX = "index";
+    private static final String INN = "inn";
+    private static final String STRANA = "strana";
+    private static final String OBLAST = "oblast";
+    private static final String GOROD = "gorod";
+    private static final String ULICA = "ulica";
+
+    private static SimpleDateFormat dateFormat = new SimpleDateFormat("dd-mm-yyyy");
+    private static List<String> namesMale = new ArrayList<>();
+    private static List<String> familiiMale = new ArrayList<>();
+    private static List<String> otchestvaMale = new ArrayList<>();
+    private static List<String> namesFemale = new ArrayList<>();
+    private static List<String> familiiFemale = new ArrayList<>();
+    private static List<String> otchestvaFemale = new ArrayList<>();
+    private static List<String> strani = new ArrayList<>();
+    private static List<String> oblasti = new ArrayList<>();
+    private static List<String> goroda = new ArrayList<>();
+    private static List<String> ulici = new ArrayList<>();
+    private static List<Date> days = new ArrayList<>();
+    private static List<Integer> indexes = new ArrayList<>();
+    private static List<String> inns = new ArrayList<>();
+    private static List<HashMap<String, Object>> infos = new ArrayList<>();
+
+    private static int getRandomInd()//Генерация Индекса
+    {
+        Random rnd = new Random();
+        // Получаем случайное число в диапазоне от min до max (включительно)
+        return 100000 + rnd.nextInt(200000 - 100001 + 1);
+    }
+
+    private static Scanner getScanner(String filePath) {
+        File fr = new File(filePath);
+        Scanner scan = null;
+        try {
+            scan = new Scanner(fr);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
+        return scan;
+    }
+
+    private static void fillStringArrayFromFile(String filePath, List<String> list) {
+        Scanner scan = getScanner(filePath);
+        if (scan == null) return;
+
+        Locale loc = new Locale("ru", "RU");
+        scan.useLocale(loc);
+
+        while (scan.hasNextLine()) list.add(scan.nextLine());
+        scan.close();
+    }
+
+    private static void fillDateArrayFromFile(String filePath, List<Date> list) {
+        Scanner scan = getScanner(filePath);
+        if (scan == null) return;
+
+        while (scan.hasNextLine()) {
+            try {
+                list.add(dateFormat.parse(scan.nextLine()));
+            } catch (ParseException e) {}
+        }
+        scan.close();
+    }
+
+    private static <T> void fillProp(Random rnd, HashMap<String, Object> rec, String key, List<T> list) {
+        int ind = list.size() > 1 ? rnd.nextInt(list.size() - 1) : 0;
+        rec.put(key, list.get(ind));
+        list.remove(ind);
+    }
+
+    public static void main(String[] args) throws Exception {
+        fillStringArrayFromFile("FamiliiFemale.txt", familiiFemale);
+        fillStringArrayFromFile("FamiliiMale.txt", familiiMale);
+        fillStringArrayFromFile("NamesFemale.txt", namesFemale);
+        fillStringArrayFromFile("NamesMale.txt", namesMale);
+        fillStringArrayFromFile("OtchestvaFemale.txt", otchestvaFemale);
+        fillStringArrayFromFile("OtchestvaMale.txt", otchestvaMale);
+        fillStringArrayFromFile("strana.txt", strani);
+        fillStringArrayFromFile("oblast.txt", oblasti);
+        fillStringArrayFromFile("gorod.txt", goroda);
+        fillStringArrayFromFile("ulica.txt", ulici);
+        fillDateArrayFromFile("BD.txt", days);
+
+        for(int i = 0; i < familiiFemale.size() + familiiMale.size(); i++) {
+            indexes.add(getRandomInd());
+            inns.add(InnHelper.getIndividualInn());
+        }
+
+        Random rnd = new Random();
+        for(int i = 0, lim = days.size(); i < lim; i++) {
+            HashMap<String, Object> rec = new HashMap<>();
+
+            if(rnd.nextBoolean() && familiiFemale.size() > 0 && namesFemale.size() > 0 && otchestvaFemale.size() > 0) {//size -параметр массива- сколько элементов
+                fillProp(rnd, rec, FAMILIYA, familiiFemale);
+                fillProp(rnd, rec, NAME, namesFemale);
+                fillProp(rnd, rec, OTCHESTVO, otchestvaFemale);
+                rec.put(SEX, false);
+            } else {
+                fillProp(rnd, rec, FAMILIYA, familiiMale);
+                fillProp(rnd, rec, NAME, namesMale);
+                fillProp(rnd, rec, OTCHESTVO, otchestvaMale);
+                rec.put(SEX, true);
+            }
+
+            fillProp(rnd, rec, BIRTHDAY, days);
+            fillProp(rnd, rec, INDEX, indexes);
+            fillProp(rnd, rec, INN, inns);
+            fillProp(rnd, rec, STRANA, strani);
+            fillProp(rnd, rec, OBLAST, oblasti);
+            fillProp(rnd, rec, GOROD, goroda);
+            fillProp(rnd, rec, ULICA, ulici);
+
+            infos.add(rec);
+        }
+
+        writeIntoExcel("Information_Users.xls"); //Вызываем функцию для записи в Excel файл.
+        writePDF("Information_Users.pdf");
+        System.out.println("Finish!!!");
+    }
+
+    private static int fillExcelCell(String rec, Row row, int cellNum) {
+        Cell cell = row.createCell(cellNum++); //cell - ячейка новая
+        cell.setCellValue(rec);
+        return cellNum;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void writeIntoExcel(String file) throws IOException {
+        Workbook book = new HSSFWorkbook();
+        Sheet sheet = book.createSheet("DATA");
+
+        Date cur = new Date(System.currentTimeMillis()); // текущее время для стравнения: текущее_время - из_файла = разница для рассчёта возраста
+        int rowNum = 0;
+        for (HashMap<String, Object> rec : infos) {
+            // Нумерация начинается с нуля
+            Row row = sheet.createRow(rowNum++);
+
+            int cellNum = 0;
+            cellNum = fillExcelCell((String)rec.get(FAMILIYA), row, cellNum);
+            cellNum = fillExcelCell((String)rec.get(NAME), row, cellNum);
+            cellNum = fillExcelCell((String)rec.get(OTCHESTVO), row, cellNum);
+            cellNum = fillExcelCell((Boolean)rec.get(SEX) ? "M" : "F", row, cellNum);
+
+            Cell cell = row.createCell(cellNum++); //cell - ячейка новая
+            //Форматирование ячейки
+            DataFormat format = book.createDataFormat();
+            CellStyle dateStyle = book.createCellStyle();
+            dateStyle.setDataFormat(format.getFormat("dd.mm.yyyy"));
+            cell.setCellStyle(dateStyle);
+            // Дата рожденгия
+            Date date = (Date)rec.get(BIRTHDAY);
+            cell.setCellValue(date);
+
+            cell = row.createCell(cellNum++); //cell - ячейка новая
+            cell.setCellStyle(dateStyle);
+            // Возраст
+            cell.setCellValue("" + (new Date(cur.getTime() - date.getTime())).getYear());
+
+            cellNum = fillExcelCell((String)rec.get(STRANA), row, cellNum);
+            cellNum = fillExcelCell((String)rec.get(OBLAST), row, cellNum);
+            cellNum = fillExcelCell((String)rec.get(GOROD), row, cellNum);
+            cellNum = fillExcelCell((String)rec.get(ULICA), row, cellNum);
+            cellNum = fillExcelCell("" + (Integer)rec.get(INDEX), row, cellNum);
+            fillExcelCell((String)rec.get(INN), row, cellNum);
+        }
+
+        // Меняем размер столбца
+        sheet.autoSizeColumn(1);
+
+        // Записываем всё в файл
+        book.write(new FileOutputStream(file));
+        System.out.println("File " + file + " created");
+    }
+
+    private static void writePDF(String filename) throws Exception {
+        Document document = new Document();
+        document.setPageSize(new Rectangle(1024, 1024));
+        PdfWriter.getInstance(document, new FileOutputStream(filename));//Создаем документ iTextTable.pdf
+
+        document.open();// Документ открыт
+
+        PdfPTable table = new PdfPTable(12); //Создаем таблицу из 11 колонок
+
+        Stream.of("Familiya", "Name", "Otchestvo", "SEX", "BirthDay", "Age", "INN", "Index", "Strana", "Oblast", "Gorod", "Ulica")
+                .forEach(columnTitle -> {
+                    PdfPCell header = new PdfPCell();
+                    header.setBackgroundColor(BaseColor.LIGHT_GRAY); //Заливка ячеек серым цветом
+                    header.setBorderWidth(2);//Обводка
+                    header.setPhrase(new Phrase(columnTitle));
+                    table.addCell(header);
+                });
+        Date cur = new Date(System.currentTimeMillis()); // текущее время для стравнения: текущее_время - из_файла = разница для рассчёта возраста
+        for (HashMap<String, Object> rec : infos) addRows(table, rec, cur); //Вызываем метод добавления строк
+
+        document.add(table);
+        document.close();
+        System.out.println("File " + filename + " created");
+    }
+
+    //Метод добавления строк
+    private static void addRows(PdfPTable table, HashMap<String, Object> rec, Date cur) {
+        table.addCell((String)rec.get(FAMILIYA));
+        table.addCell((String)rec.get(NAME));
+        table.addCell((String)rec.get(OTCHESTVO));
+        table.addCell((Boolean)rec.get(SEX) ? "M" : "F");
+        Date date = (Date) rec.get(BIRTHDAY);
+        table.addCell(date.toString());
+        table.addCell((String)"" + (new Date(cur.getTime()- date.getTime())).getYear());
+        table.addCell((String)rec.get(INN));
+        table.addCell("" + (Integer)rec.get(INDEX));
+        table.addCell((String)rec.get(STRANA));
+        table.addCell((String)rec.get(OBLAST));
+        table.addCell((String)rec.get(GOROD));
+        table.addCell((String)rec.get(ULICA));
+        table.completeRow();
+    }
+}
+
+
+
+
+
